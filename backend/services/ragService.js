@@ -1,7 +1,6 @@
 /**
  * RAG Service - Neural Embeddings using Xenova/transformers (via Worker Thread)
  */
-
 const { Worker } = require('worker_threads');
 const path = require('path');
 

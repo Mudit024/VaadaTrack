@@ -151,38 +151,46 @@ const extractPromises = async (req, res) => {
 
 // POST /api/ai/analyze-promise
 const analyzePromise = async (req, res) => {
-  const { promiseId } = req.body;
+  try {
+    const { promiseId } = req.body;
 
-  if (!promiseId) {
-    return res.status(400).json({
-      message: "promiseId required",
+    if (!promiseId) {
+      return res.status(400).json({
+        message: "promiseId required",
+      });
+    }
+
+    const promise = await PromiseModel.findById(promiseId);
+
+    if (!promise) {
+      return res.status(404).json({
+        message: "Promise not found",
+      });
+    }
+
+    const evidenceTexts = (promise.evidence || []).map(
+      (e) => `${e.title}: ${e.description}`
+    );
+
+    const analysis = await aiService.analyzePromiseFulfillment(
+      promise,
+      evidenceTexts
+    );
+
+    promise.status = analysis.status || "Unverifiable";
+    promise.verificationScore = typeof analysis.score === "number" ? analysis.score : 0;
+    promise.aiAnalysis = analysis.analysis || "No analysis generated";
+
+    await promise.save();
+
+    res.json(analysis);
+  } catch (error) {
+    console.error("Analyze Promise Error:", error);
+    res.status(500).json({
+      message: "Failed to analyze promise",
+      error: error.message,
     });
   }
-
-  const promise = await PromiseModel.findById(promiseId);
-
-  if (!promise) {
-    return res.status(404).json({
-      message: "Promise not found",
-    });
-  }
-
-  const evidenceTexts = promise.evidence.map(
-    (e) => `${e.title}: ${e.description}`
-  );
-
-  const analysis = await aiService.analyzePromiseFulfillment(
-    promise,
-    evidenceTexts
-  );
-
-  promise.status = analysis.status;
-  promise.verificationScore = analysis.score;
-  promise.aiAnalysis = analysis.analysis;
-
-  await promise.save();
-
-  res.json(analysis);
 };
 
 // POST /api/ai/compare-manifestos

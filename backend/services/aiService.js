@@ -10,12 +10,13 @@ const MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 const summarizeManifesto = async (text) => {
   const truncated = text.slice(0, 15000);
 
-  const completion = await groq.chat.completions.create({
-    model: MODEL,
-    messages: [
-      {
-        role: "user",
-        content: `
+  try {
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "user",
+          content: `
 You are a political analyst.
 
 Summarize the following election manifesto in 3-5 paragraphs.
@@ -25,23 +26,28 @@ Be factual and neutral.
 Manifesto:
 ${truncated}
 `,
-      },
-    ],
-  });
+        },
+      ],
+    });
 
-  return completion.choices[0].message.content;
+    return completion.choices[0]?.message?.content || "";
+  } catch (error) {
+    console.error("Summarize Manifesto Error:", error);
+    throw error;
+  }
 };
 
 // Extract categories
 const extractCategories = async (text) => {
   const truncated = text.slice(0, 10000);
 
-  const completion = await groq.chat.completions.create({
-    model: MODEL,
-    messages: [
-      {
-        role: "user",
-        content: `
+  try {
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "user",
+          content: `
 Extract the main policy categories covered in this manifesto.
 
 Return ONLY a JSON array from:
@@ -50,12 +56,11 @@ Return ONLY a JSON array from:
 Manifesto:
 ${truncated}
 `,
-      },
-    ],
-  });
+        },
+      ],
+    });
 
-  try {
-    const response = completion.choices[0].message.content;
+    const response = completion.choices[0]?.message?.content || "";
 
     const clean = response
       .replace(/```json/g, "")
@@ -111,7 +116,7 @@ ${chunkText}
         ],
       });
 
-      const response = completion.choices[0].message.content;
+      const response = completion.choices[0]?.message?.content || "";
       const parsed = JSON.parse(response);
       return parsed.promises || [];
     } catch (error) {
@@ -150,12 +155,13 @@ ${chunkText}
 const analyzePromiseFulfillment = async (promise, evidenceTexts) => {
   const evidenceSummary = evidenceTexts.join("\n").slice(0, 8000);
 
-  const completion = await groq.chat.completions.create({
-    model: MODEL,
-    messages: [
-      {
-        role: "user",
-        content: `
+  try {
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "user",
+          content: `
 Analyze whether this promise has been fulfilled.
 
 PROMISE:
@@ -165,35 +171,51 @@ DESCRIPTION:
 ${promise.description}
 
 EVIDENCE:
-${evidenceSummary}
+${evidenceSummary || "No explicit evidence provided yet."}
 
-Return ONLY JSON:
+Return ONLY JSON with this exact schema:
 
 {
-  "status":"Fulfilled",
-  "analysis":"...",
-  "score":85
+  "status": "Partially Fulfilled",
+  "analysis": "Detailed explanation of fulfillment progress based on evidence...",
+  "score": 50
 }
-`,
-      },
-    ],
-  });
 
-  try {
-    const response = completion.choices[0].message.content;
+CRITICAL RULES:
+- "status" MUST be exactly one of: ["Fulfilled", "Partially Fulfilled", "Broken", "In Progress", "Pending", "Unverifiable"]
+- "score" must be an integer between 0 and 100 representing confidence/percentage.
+`,
+        },
+      ],
+    });
+
+    const response = completion.choices[0]?.message?.content || "";
 
     const clean = response
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
 
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+
+    const VALID_STATUSES = ['Fulfilled', 'Partially Fulfilled', 'Broken', 'In Progress', 'Pending', 'Unverifiable'];
+    if (!VALID_STATUSES.includes(parsed.status)) {
+      parsed.status = 'Unverifiable';
+    }
+
+    if (typeof parsed.score !== 'number' || isNaN(parsed.score)) {
+      parsed.score = 0;
+    } else {
+      parsed.score = Math.min(100, Math.max(0, Math.round(parsed.score)));
+    }
+
+    return parsed;
   } catch (error) {
     console.error("Analyze Promise Error:", error);
 
     return {
       status: "Unverifiable",
-      analysis: "Could not analyze",
+      analysis: `AI Analysis unavailable: ${error.message || "Unknown error"}`,
       score: 0,
     };
   }

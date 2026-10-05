@@ -24,7 +24,7 @@ export default function PromiseDetailPage() {
     try {
       const { data } = await aiAPI.analyzePromise(id);
       setPromise(prev => ({ ...prev, status: data.status, aiAnalysis: data.analysis, verificationScore: data.score }));
-    } catch (e) { alert('Analysis failed: ' + e.message); }
+    } catch (e) { alert('Analysis failed: ' + (e.response?.data?.message || e.message)); }
     finally { setAnalyzing(false); }
   };
 

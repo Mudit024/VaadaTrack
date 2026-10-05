@@ -56,40 +56,40 @@ const getManifestoById = async (req, res) => {
 };
 
 // POST /api/manifestos/upload  (admin only) - Upload PDF
-const uploadManifestoPDF = async (req, res) => {
-  const { partyId, election, year, electionType } = req.body;
+  const uploadManifestoPDF = async (req, res) => {
+    const { partyId, election, year, electionType } = req.body;
 
-  if (!req.file) return res.status(400).json({ message: 'PDF file required' });
-  if (!partyId || !election || !year)
-    return res.status(400).json({ message: 'partyId, election, year required' });
+    if (!req.file) return res.status(400).json({ message: 'PDF file required' });
+    if (!partyId || !election || !year)
+      return res.status(400).json({ message: 'partyId, election, year required' });
 
-  // Parse PDF
-  let rawText = '';
-  try {
-    const pdfData = await pdfParse(req.file.buffer);
-    rawText = pdfData.text;
-  } catch (e) {
-    return res.status(400).json({ message: 'Failed to parse PDF: ' + e.message });
-  }
+    // Parse PDF
+    let rawText = '';
+    try {
+      const pdfData = await pdfParse(req.file.buffer);
+      rawText = pdfData.text;
+    } catch (e) {
+      return res.status(400).json({ message: 'Failed to parse PDF: ' + e.message });
+    }
 
-  // Create manifesto record
-  const manifesto = await Manifesto.create({
-    party: partyId,
-    election,
-    year: parseInt(year),
-    electionType,
-    rawText,
-    pdfName: req.file.originalname,
-    pdfSize: req.file.size,
-    status: 'processing',
-    uploadedBy: req.user._id,
-  });
+    // Create manifesto record
+    const manifesto = await Manifesto.create({
+      party: partyId,
+      election,
+      year: parseInt(year),
+      electionType,
+      rawText,
+      pdfName: req.file.originalname,
+      pdfSize: req.file.size,
+      status: 'processing',
+      uploadedBy: req.user._id,
+    });
 
-  // Process in background: summarize + extract promises + embed
-  processManifesto(manifesto._id, rawText).catch(console.error);
+    // Process in background: summarize + extract promises + embed
+    processManifesto(manifesto._id, rawText).catch(console.error);
 
-  res.status(201).json({ _id: manifesto._id, message: 'Manifesto uploaded, processing started', status: 'processing' });
-};
+    res.status(201).json({ _id: manifesto._id, message: 'Manifesto uploaded, processing started', status: 'processing' });
+  };
 
 // POST /api/manifestos/text  (admin only) - Add via raw text
 const addManifestoText = async (req, res) => {
